@@ -2,12 +2,10 @@
 #include "Data.h"
 
 // Define static members
-volatile unsigned long SensorManager::_flowCounter1 = 0;
-volatile unsigned long SensorManager::_flowCounter2 = 0;
+/* volatile unsigned long SensorManager::_flowCounter1 = 0;
+volatile unsigned long SensorManager::_flowCounter2 = 0; */
 
-SensorManager::SensorManager()
-{
-    // Initialize fields to zero or default values
+SensorManager::SensorManager(): oneWire(TEMP_SENSOR_PIN), tempSensor(&oneWire) {
     _data.tdsValue       = 0.0f;
     _data.turbidityValue = 0.0f;
     _data.flowRate1      = 0.0f;
@@ -15,132 +13,73 @@ SensorManager::SensorManager()
     _data.flowCount1     = 0;
     _data.flowCount2     = 0;
     _data.temperature    = 0.0f;
+
+    ntu = 0.0f;
+    calibrationFactor = 0.0f;
 }
 
-void SensorManager::begin()
-{
-    // Initialize sensor pins
-    pinMode(TDS_PIN,         INPUT);
-    pinMode(TURBIDITY_PIN,   INPUT);
+void SensorManager::begin() {
+    pinMode(TURBIDITY_PIN,   INPUT_PULLUP);
     pinMode(FLOWMETER1_PIN,  INPUT_PULLUP);
     pinMode(FLOWMETER2_PIN,  INPUT_PULLUP);
-    pinMode(TEMP_SENSOR_PIN, INPUT); // For DS18B20, you'd need 1-Wire or library code
     pinMode(RELAY_PIN,       OUTPUT);
 
-    // Default: turn relay off
-    digitalWrite(RELAY_PIN, LOW);
-    _pumpIsOn = false;
-
-    // Attach interrupts for the flow meters
-    attachInterrupt(digitalPinToInterrupt(FLOWMETER1_PIN), flowMeter1ISR, RISING);
-    attachInterrupt(digitalPinToInterrupt(FLOWMETER2_PIN), flowMeter2ISR, RISING);
+    // TDS sensor config
+    pinMode(TDS_PIN, INPUT);
+    analogReadResolution(12);
+    analogSetAttenuation(ADC_11db);
+    calibrationFactor = 0.0001f;
+    // Temp sensor config
+    tempSensor.begin();
+    
 }
 
-void SensorManager::update()
-{
+void SensorManager::update() {
     // Read and process sensors
     readTDS();
     readTurbidity();
     readTemperature();
-    calculateFlowRates();
+    //calculateFlowRates();
 }
 
-SensorData SensorManager::getSensorData()
-{
-    // Copy out the raw counts as well (in case user wants them)
-    _data.flowCount1 = _flowCounter1;
-    _data.flowCount2 = _flowCounter2;
-
+SensorData SensorManager::getSensorData() {
     return _data;
 }
 
-// -------------------- Relay Control --------------------
-void SensorManager::setPumpOn()
-{
-    digitalWrite(RELAY_PIN, HIGH);
-    _pumpIsOn = true;
-}
-
-void SensorManager::setPumpOff()
-{
-    digitalWrite(RELAY_PIN, LOW);
-    _pumpIsOn = false;
-}
-
-bool SensorManager::isPumpOn()
-{
-    return _pumpIsOn;
-}
-
-// -------------------- ISR Functions --------------------
-void IRAM_ATTR SensorManager::flowMeter1ISR()
-{
-    _flowCounter1++;
-}
-
-void IRAM_ATTR SensorManager::flowMeter2ISR()
-{
-    _flowCounter2++;
-}
-
-// -------------------- Internal Reads --------------------
-void SensorManager::readTDS()
-{
-    // Basic analog read for TDS sensor
+void SensorManager::readTDS() {
     int adcValue = analogRead(TDS_PIN);
-    
-    // Convert raw ADC value to voltage [0..3.3V] on ESP32 (12-bit: 0-4095)
     float voltage = (adcValue / 4095.0f) * 3.3f;
-
-    // A *very* rough example TDS formula: TDS (ppm) ~ voltage * someFactor
-    // Different sensors have different calibrations. Adjust accordingly.
-    float tdsFactor = 400.0f;  // e.g. if 1V ~ 400 ppm (placeholder)
-    float tds = voltage * tdsFactor;
-
+    float conductivity = voltage / calibrationFactor;
+    float tempCompensation = 25.0f / (_data.temperature + 273.15f);
+    float tds = conductivity * tempCompensation;
     _data.tdsValue = tds;
 }
 
-void SensorManager::readTurbidity()
-{
+void SensorManager::readTurbidity() {
     // Basic analog read for Turbidity sensor
     int adcValue = analogRead(TURBIDITY_PIN);
-    // Convert to voltage
-    float voltage = (adcValue / 4095.0f) * 3.3f;
+    float voltage = (adcValue / 4095.0f) * 5.0f;
+    // Debug
+    Serial.println(adcValue);
+    Serial.println(voltage);
 
-    // Example formula for a typical turbidimeter. 
-    // (This is purely for demonstration; you must calibrate for your sensor.)
-    // For instance, one known approximate formula is:
-    // NTU ~ -1120.4*(voltage^2) + 5742.3*voltage - 4353.8
-    float ntu = -1120.4f * voltage * voltage 
-                 + 5742.3f * voltage 
-                 - 4353.8f;
-
-    // Clip the value to 0 if it goes negative from formula quirks
-    if (ntu < 0) ntu = 0;
+    if (voltage < 2.5f){
+        ntu = 3000;
+    } else {
+        ntu = ( -1120.4f * voltage * voltage ) + ( 5742.3f * voltage ) - 4352.9f;
+        if (ntu < 0) ntu = 0;
+    }
 
     _data.turbidityValue = ntu;
 }
 
-void SensorManager::readTemperature()
-{
-    // If this is truly a DS18B20, you'd do a digital read routine with a library.
-    // For demonstration, let's pretend it's an analog thermistor or sensor.
+void SensorManager::readTemperature() {
 
-    int adcValue = analogRead(TEMP_SENSOR_PIN);
-    // Convert to voltage
-    float voltage = (adcValue / 4095.0f) * 5;
-
-    // A simple approximate conversion for a hypothetical linear sensor:
-    // e.g. 10 mV/°C offset from 0°C, just as a placeholder. 
-    // Obviously, real thermistors need more sophisticated calculation.
-    float tempC = (voltage / 0.01f); // If 10 mV = 1°C, then 1V = 100°C
-
-    _data.temperature = tempC;
-
+    tempSensor.requestTemperatures();
+    _data.temperature = tempSensor.getTempCByIndex(0);
 }
 
-void SensorManager::calculateFlowRates()
-{
+/* void SensorManager::calculateFlowRates(){
     // Typically, flow sensors produce pulses in proportion to flow rate.
     // Flow = pulses_per_second / calibrationFactor, etc.
     // Since we’re only reading absolute pulse counts in this example,
@@ -175,4 +114,4 @@ void SensorManager::calculateFlowRates()
     // Convert L/sec to L/min:
     _data.flowRate1 = flowRate1LPS * 60.0f;
     _data.flowRate2 = flowRate2LPS * 60.0f;
-}
+} */

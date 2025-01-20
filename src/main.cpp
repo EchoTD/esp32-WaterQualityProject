@@ -5,42 +5,30 @@
 // Create a global SensorManager
 SensorManager sensorManager;
 
-void setup()
-{
+void setup() {
     Serial.begin(115200);
     sensorManager.begin();
 
-    Serial.println("System Initialized. Relay OFF, sensors ready.");
+    Serial.println("System Initialized.");
 }
 
-void loop()
-{
-    // Update sensor readings (assume ~1 second between loops)
+void loop() {
     sensorManager.update();
-
-    // Fetch the latest sensor data
     SensorData data = sensorManager.getSensorData();
 
-    // Print the values
-/*     Serial.print("TDS (ppm): ");
-    Serial.print(data.tdsValue); */
-    Serial.print("  |  Temp (C): ");
+    /* int adcVal = analogRead(34);
+    float voltage = (adcVal / 4095.0f) * 3.3f;
+    Serial.print(adcVal);
+    Serial.print("\t");
+    Serial.print(voltage);
+    Serial.println(); */
+
+    Serial.print(">temp_c:");
     Serial.println(data.temperature);
+    Serial.print(">ppm:");
+    Serial.println(data.tdsValue);
+    Serial.print(">ntu:");
+    Serial.println(data.turbidityValue);
 
-    // Example logic to control pump:
-    // Turn pump on if TDS < 100 ppm (arbitrary logic)
-    // Turn pump off if TDS >= 100 ppm
-    /* if (data.tdsValue < 100.0f && !sensorManager.isPumpOn())
-    {
-        sensorManager.setPumpOn();
-        Serial.println("Pump turned ON");
-    }
-    else if (data.tdsValue >= 100.0f && sensorManager.isPumpOn())
-    {
-        sensorManager.setPumpOff();
-        Serial.println("Pump turned OFF");
-    } */
-
-    // Delay ~1 second
-    delay(10);
+    //delay(1);
 }
