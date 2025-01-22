@@ -59,8 +59,8 @@ void SensorManager::readTDS() {
     int adcValue = analogRead(TDS_PIN);
     float voltage = (adcValue / 4095.0f) * 3.3f; 
     float conductivity = voltage / calibrationFactor;
-    float tempCompensation = 25.0f / (_data.temperature + 273.15f);
-    float tds = conductivity * tempCompensation;
+    float temperatureCoefficient = 1.0f + (0.02f * (_data.temperature - 25.0f));
+    float tds = conductivity * temperatureCoefficient * 0.5f;
     _data.tdsValue = tds;
 }
 
