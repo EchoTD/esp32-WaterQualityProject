@@ -1,8 +1,7 @@
 # ESP32 Multi-Sensor + PWM Buzzer Project
 
-**Author:** (Your Name)  
-**Date:** (Project Date)  
-**Board:** ESP32 Dev Module (e.g., `esp32dev` in PlatformIO)
+**Author:** Alaaddin Can Gürsoy
+**Board:** ESP32-WROOM-32D
 
 ## Overview
 
