@@ -1,88 +1,27 @@
 #include <Arduino.h>
 #include "SensorManager.h"
-#include <Data.h>
+#include "Data.h"
 
-// Buzzer pin
 static const int BUZZER_PIN = 26;
+static const int PWM_CHANNEL = 0;    // channel 0
+static const int PWM_RES     = 8;    // resolution
+static const int DEFAULT_FREQ= 1000;
 
-// LEDC channel and settings for ESP32
-static const int PWM_CHANNEL = 0;    // channel 0..15
-static const int PWM_RES     = 8;    // resolution in bits => duty 0..255
-static const int DEFAULT_FREQ= 1000; // default frequency in Hz
-
-// We’ll keep track of buzzer modes
 enum BuzzerMode {
   MODE_OFF,
-  MODE_SINGLE,   // single continuous frequency
-  MODE_BEEP      // toggling between two freq
+  MODE_SINGLE,
+  MODE_BEEP
 };
 
 BuzzerMode buzzerMode = MODE_OFF;
 
-// For MODE_SINGLE
 int singleFreqHz = DEFAULT_FREQ;
 
-// For MODE_BEEP
 int beepFreq1Hz = 500;
 int beepFreq2Hz = 1000;
-bool beepToggleState = false;        // which freq is active now
-unsigned long beepLastToggle = 0;    // last time we toggled freq
-static const unsigned long BEEP_PERIOD = 500; // ms to alternate freq
-
-void setupPWM() {
-  // Set up the LEDC PWM for the buzzer
-  ledcSetup(PWM_CHANNEL, DEFAULT_FREQ, PWM_RES);
-  ledcAttachPin(BUZZER_PIN, PWM_CHANNEL);
-  // Start with buzzer off
-  ledcWrite(PWM_CHANNEL, 0);
-}
-
-void setBuzzerFrequency(int freqHz) {
-  if (freqHz <= 0) {
-    // Off if invalid freq
-    ledcWriteTone(PWM_CHANNEL, 0); 
-    ledcWrite(PWM_CHANNEL, 0);
-  } else {
-    // Set the new tone
-    ledcWriteTone(PWM_CHANNEL, freqHz);
-    // e.g. 50% duty
-    ledcWrite(PWM_CHANNEL, 128); // in 8-bit => 128/255 ~ 50%
-  }
-}
-
-void stopBuzzer() {
-  // Turn buzzer off
-  ledcWriteTone(PWM_CHANNEL, 0);
-  ledcWrite(PWM_CHANNEL, 0);
-}
-
-// Updates buzzer output each loop based on the current mode
-void updateBuzzer() {
-  switch (buzzerMode) {
-    case MODE_OFF:
-      // ensure off
-      stopBuzzer();
-      break;
-
-    case MODE_SINGLE:
-      // singleFreqHz is already set, ensure we have that frequency
-      setBuzzerFrequency(singleFreqHz);
-      break;
-
-    case MODE_BEEP: {
-      // every 500ms, alternate beepToggleState
-      unsigned long now = millis();
-      if (now - beepLastToggle >= BEEP_PERIOD) {
-        beepToggleState = !beepToggleState;
-        beepLastToggle = now;
-        // pick the current freq
-        int activeFreq = beepToggleState ? beepFreq1Hz : beepFreq2Hz;
-        setBuzzerFrequency(activeFreq);
-      }
-      break;
-    }
-  }
-}
+bool beepToggleState = false;    
+unsigned long beepLastToggle = 0;
+static const unsigned long BEEP_PERIOD = 500;
 
 SensorManager sensorManager;
 
@@ -98,13 +37,6 @@ void setup() {
 void loop() {
     sensorManager.update();
     SensorData data = sensorManager.getSensorData();
-
-    /* int adcVal = analogRead(34);
-    float voltage = (adcVal / 4095.0f) * 3.3f;
-    Serial.print(adcVal);
-    Serial.print("\t");
-    Serial.print(voltage);
-    Serial.println(); */
 
     Serial.print(">temp_c:");
     Serial.println(data.temperature);
@@ -123,7 +55,6 @@ void loop() {
     Serial.print(">flowCount2:");
     Serial.println(data.flowCount2); */
 
-    // 1) Poll user commands from serial
   /* if (Serial.available() > 0) {
     String input = Serial.readStringUntil('\n');
     input.trim();
@@ -188,4 +119,48 @@ void loop() {
   // 2) Update the buzzer based on mode
   updateBuzzer(); */
 
+}
+
+void setupPWM() {
+  ledcSetup(PWM_CHANNEL, DEFAULT_FREQ, PWM_RES);
+  ledcAttachPin(BUZZER_PIN, PWM_CHANNEL);
+  ledcWrite(PWM_CHANNEL, 0);
+}
+
+void setBuzzerFrequency(int freqHz) {
+  if (freqHz <= 0) {
+    ledcWriteTone(PWM_CHANNEL, 0); 
+    ledcWrite(PWM_CHANNEL, 0);
+  } else {
+    ledcWriteTone(PWM_CHANNEL, freqHz);
+    ledcWrite(PWM_CHANNEL, 128);
+  }
+}
+
+void stopBuzzer() {
+  ledcWriteTone(PWM_CHANNEL, 0);
+  ledcWrite(PWM_CHANNEL, 0);
+}
+
+void updateBuzzer() {
+  switch (buzzerMode) {
+    case MODE_OFF:
+      stopBuzzer();
+      break;
+
+    case MODE_SINGLE:
+      setBuzzerFrequency(singleFreqHz);
+      break;
+
+    case MODE_BEEP: {
+      unsigned long now = millis();
+      if (now - beepLastToggle >= BEEP_PERIOD) {
+        beepToggleState = !beepToggleState;
+        beepLastToggle = now;
+        int activeFreq = beepToggleState ? beepFreq1Hz : beepFreq2Hz;
+        setBuzzerFrequency(activeFreq);
+      }
+      break;
+    }
+  }
 }

@@ -8,7 +8,6 @@ static const uint8_t TURBIDITY_PIN   = 35;
 static const uint8_t FLOWMETER1_PIN  = 16;
 static const uint8_t FLOWMETER2_PIN  = 17;
 static const uint8_t TEMP_SENSOR_PIN = 4;
-static const uint8_t RELAY_PIN       = 12;
 
 typedef struct {
     float tdsValue;         // in ppm 
@@ -17,8 +16,8 @@ typedef struct {
     float flowRate1;        // in L/min 
     float flowRate2;        // in L/min 
     float flowRateDiff;
-    unsigned long flowCount1; // raw pulse count
-    unsigned long flowCount2; // raw pulse count
+    unsigned long flowCount1;
+    unsigned long flowCount2;
 } SensorData;
 
 #endif
