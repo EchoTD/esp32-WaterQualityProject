@@ -1,6 +1,6 @@
 # ESP32 Multi-Sensor + PWM Buzzer Project
 
-**Author:** Alaaddin Can Gürsoy
+**Author:** EchoTD
 **Board:** ESP32-WROOM-32D
 
 ## Overview
